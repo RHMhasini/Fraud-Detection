@@ -1,0 +1,31 @@
+2025-11-21 21:19:53,081 - INFO - Models loaded successfully.
+2025-11-21 21:20:09,199 - INFO - Models loaded successfully.
+2025-11-21 21:33:52,330 - INFO - Models loaded successfully.
+2025-11-21 21:48:30,454 - INFO - Transaction validation passed for hashed_user_id: a8972f5f21ffebd48f3d9db473c921e9d4a62784b1a266...
+2025-11-21 21:48:30,816 - INFO - Transaction inserted successfully: ID 7, Ensemble Score 0.43636528457828894
+2025-11-21 21:49:06,288 - INFO - Transaction validation passed for hashed_user_id: b8972f5f21ffebd48f3d9db473c921e9d4a62784b1a266...
+2025-11-21 21:49:06,584 - INFO - Transaction inserted successfully: ID 8, Ensemble Score 0.4480981033836069
+2025-11-21 21:49:31,842 - INFO - Transaction validation passed for hashed_user_id: b8972f5f21ffebd48f3d9db473c921e9d4a62784b1a266...
+2025-11-21 21:49:31,969 - INFO - Transaction inserted successfully: ID 9, Ensemble Score 0.4480981033836069
+2025-11-21 22:06:06,982 - INFO - Models loaded successfully.
+2025-11-21 22:06:10,823 - INFO - Models loaded successfully.
+2025-11-21 22:16:38,746 - INFO - Models loaded successfully.
+2025-11-21 22:17:39,581 - INFO - Transaction validation passed for hashed_user_id: b8972f5f21ffebd48f3d9db473c921e9d4a62784b1a266...
+2025-11-21 22:17:39,790 - INFO - Transaction inserted successfully: ID 10, Ensemble Score 0.4480981033836069
+2025-11-21 22:18:43,704 - INFO - Models loaded successfully.
+2025-11-21 22:20:56,468 - INFO - Models loaded successfully.
+2025-11-21 22:21:14,600 - INFO - Models loaded successfully.
+2025-11-21 22:49:38,164 - INFO - Models loaded successfully.
+2025-11-21 22:51:44,448 - INFO - Models loaded successfully.
+2025-11-21 22:51:51,141 - INFO - Models loaded successfully.
+2025-11-21 22:54:20,513 - INFO - Models loaded successfully.
+2025-11-21 22:56:28,972 - INFO - Models loaded successfully.
+2025-11-21 23:04:49,764 - INFO - Models loaded successfully.
+2025-11-22 18:02:24,261 - INFO - Models loaded successfully.
+2025-11-22 18:04:33,699 - INFO - Models loaded successfully.
+2025-11-22 18:06:01,754 - INFO - Transaction validation passed for hashed_user_id: test_user_hash_123
+2025-11-22 18:06:01,963 - INFO - Transaction inserted successfully: ID 11, Ensemble Score 0.43636528457828894
+2025-11-22 18:06:28,599 - INFO - Transaction validation passed for hashed_user_id: test_user_hash_123
+2025-11-22 18:06:28,718 - INFO - Transaction inserted successfully: ID 12, Ensemble Score 0.43636528457828894
+2025-11-22 18:10:09,566 - INFO - Models loaded successfully.
+2025-11-22 18:10:14,042 - INFO - Models loaded successfully.
