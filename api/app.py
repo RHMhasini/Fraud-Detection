@@ -2,13 +2,14 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 import sqlite3
 import pandas as pd
-import joblib
+import requests
 from datetime import datetime
 from pathlib import Path
 import logging
-from typing import List
+from typing import List, Optional
+import hashlib
 
-app = FastAPI(title="Fraud Detection API")
+app = FastAPI(title="Fraud Detection API - Main Orchestrator")
 
 # -------------------
 # Logging Setup
@@ -28,24 +29,22 @@ logging.basicConfig(
 # -------------------
 BASE_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = BASE_DIR.parent
-
-MODELS_DIR = PROJECT_ROOT / "models"
 DATABASE_DIR = PROJECT_ROOT / "database"
-
-RF_MODEL_PATH = MODELS_DIR / "RF_best_model.pkl"
-XGB_MODEL_PATH = MODELS_DIR / "xgb_fraud_model.pkl"
 DB_PATH = DATABASE_DIR / "fraud.db"
 
 # -------------------
-# Load trained models
+# Service URLs (assuming all services run on different ports or same port with different paths)
+# In production, these would be environment variables or service discovery
 # -------------------
-try:
-    rf_model = joblib.load(RF_MODEL_PATH)
-    xgb_model = joblib.load(XGB_MODEL_PATH)
-    logging.info("Models loaded successfully.")
-except Exception as e:
-    logging.error(f"Failed to load models: {str(e)}")
-    raise
+INGEST_API_URL = "http://127.0.0.1:8001"
+ANOMALY_API_URL = "http://127.0.0.1:8002"
+ML_SCORING_API_URL = "http://127.0.0.1:8003"
+VERIFIER_API_URL = "http://127.0.0.1:8004"
+ALERT_API_URL = "http://127.0.0.1:8005"
+
+# For development, we can run all services on the same port with different paths
+# Or use a single service that handles all operations
+USE_MONOLITHIC = True  # Set to False to use separate services
 
 def get_connection():
     conn = sqlite3.connect(DB_PATH)
@@ -78,7 +77,8 @@ with get_connection() as conn:
         browser_Opera INTEGER,
         browser_Safari INTEGER,
         sex_F INTEGER,
-        sex_M INTEGER
+        sex_M INTEGER,
+        created_at TEXT
     )
     """)
     conn.execute("""
@@ -91,10 +91,23 @@ with get_connection() as conn:
         created_at TEXT
     )
     """)
+    conn.commit()
 
 # -------------------
-# Pydantic model for API input
+# Pydantic models
 # -------------------
+class RawTransaction(BaseModel):
+    signup_time: str
+    purchase_time: str
+    purchase_value: float
+    age: int
+    device_id: str
+    ip_address: str
+    user_id: str
+    source: str
+    browser: str
+    sex: str
+
 class Transaction(BaseModel):
     signup_time: str
     purchase_time: str
@@ -117,136 +130,190 @@ class Transaction(BaseModel):
     sex_M: int
 
 # -------------------
-# Validation Function
+# Helper Functions
 # -------------------
-def validate_transaction(tx: Transaction):
-    errors = []
-    
-    # Check datetime formats
+def call_service(url: str, method: str = "GET", data: Optional[dict] = None, timeout: int = 5):
+    """Call a microservice API"""
     try:
-        pd.to_datetime(tx.signup_time)
-    except ValueError:
-        errors.append("signup_time must be a valid ISO datetime string.")
-    
-    try:
-        pd.to_datetime(tx.purchase_time)
-    except ValueError:
-        errors.append("purchase_time must be a valid ISO datetime string.")
-    
-    # Check ranges
-    if tx.purchase_value <= 0:
-        errors.append("purchase_value must be positive.")
-    
-    if not (18 <= tx.age <= 100):
-        errors.append("age must be between 18 and 100.")
-    
-    # Check binary fields (0 or 1)
-    binary_fields = [
-        tx.source_Ads, tx.source_Direct, tx.source_SEO,
-        tx.browser_Chrome, tx.browser_FireFox, tx.browser_IE, tx.browser_Opera, tx.browser_Safari,
-        tx.sex_F, tx.sex_M
-    ]
-    for field in binary_fields:
-        if field not in [0, 1]:
-            errors.append(f"Binary fields must be 0 or 1 (found invalid value: {field}).")
-    
-    # Check hashed fields are non-empty
-    if not tx.hashed_user_id.strip():
-        errors.append("hashed_user_id cannot be empty.")
-    if not tx.hashed_device_id.strip():
-        errors.append("hashed_device_id cannot be empty.")
-    if not tx.hashed_ip_address.strip():
-        errors.append("hashed_ip_address cannot be empty.")
-    
-    if errors:
-        raise HTTPException(status_code=400, detail={"validation_errors": errors})
+        if method == "GET":
+            response = requests.get(url, timeout=timeout)
+        elif method == "POST":
+            response = requests.post(url, json=data, timeout=timeout)
+        else:
+            raise ValueError(f"Unsupported method: {method}")
+        
+        if response.status_code == 200:
+            return response.json()
+        else:
+            logging.warning(f"Service call failed: {url}, status={response.status_code}")
+            return None
+    except Exception as e:
+        logging.warning(f"Service call error: {url}, error={str(e)}")
+        return None
 
 # -------------------
-# Endpoint to insert transaction + compute ML score
+# Main Transaction Flow Endpoint
 # -------------------
 @app.post("/transaction")
-def add_transaction(tx: Transaction):
+def process_transaction(tx: RawTransaction):
+    """
+    Main endpoint that orchestrates the fraud detection flow:
+    1. Ingest transaction
+    2. Detect anomalies
+    3. Calculate ML scores
+    4. Verify transaction
+    5. Generate alerts if needed
+    """
     try:
-        # Input Validation & Preprocessing
-        validate_transaction(tx)
-        logging.info(f"Transaction validation passed for hashed_user_id: {tx.hashed_user_id}")
+        # Step 1: Ingest transaction
+        logging.info(f"Processing transaction for user: {tx.user_id}")
         
-        df = pd.DataFrame([tx.dict()])
-        
-        # Compute derived feature
-        df['time_to_purchase'] = (pd.to_datetime(df['purchase_time']) - pd.to_datetime(df['signup_time'])).dt.total_seconds()
-        
-        # Align columns with model
-        feature_cols = rf_model.feature_names_in_
-        df_model = df[feature_cols]
-        
-        # Predict scores
-        rf_score = float(rf_model.predict_proba(df_model)[:, 1][0])
-        xgb_score = float(xgb_model.predict_proba(df_model)[:, 1][0])
-        ensemble_score = (rf_score + xgb_score) / 2.0
-        
-        # Insert transaction and scores
-        with get_connection() as conn:
-            cur = conn.cursor()
-            cur.execute("""
-                INSERT INTO transactions (
-                    signup_time, purchase_time, purchase_value, age, time_to_purchase,
-                    device_id_count, ip_address_count, hashed_user_id, hashed_device_id, hashed_ip_address,
-                    source_Ads, source_Direct, source_SEO,
-                    browser_Chrome, browser_FireFox, browser_IE, browser_Opera, browser_Safari,
-                    sex_F, sex_M
-                ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-            """, tuple(df.iloc[0]))
-            transaction_id = cur.lastrowid
+        if USE_MONOLITHIC:
+            # Use local ingestion logic
+            import sys
+            import os
+            sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+            from ingest_api import calculate_counts_from_db
+            import pandas as pd
             
-            cur.execute("""
-                INSERT INTO ml_scores (transaction_id, RF_score, XGB_score, ensemble_score, created_at)
-                VALUES (?,?,?,?,?)
-            """, (transaction_id, rf_score, xgb_score, ensemble_score, datetime.now().isoformat()))
-            conn.commit()
+            # Preprocess
+            df = pd.DataFrame([tx.dict()])
+            df["signup_time"] = pd.to_datetime(df["signup_time"])
+            df["purchase_time"] = pd.to_datetime(df["purchase_time"])
+            df["time_to_purchase"] = (df["purchase_time"] - df["signup_time"]).dt.total_seconds()
+            
+            device_id_count, ip_address_count = calculate_counts_from_db(tx.device_id, tx.ip_address)
+            df["device_id_count"] = device_id_count
+            df["ip_address_count"] = ip_address_count
+            
+            df["hashed_user_id"] = df["user_id"].apply(lambda x: hashlib.sha256(x.encode()).hexdigest())
+            df["hashed_device_id"] = df["device_id"].apply(lambda x: hashlib.sha256(x.encode()).hexdigest())
+            df["hashed_ip_address"] = df["ip_address"].apply(lambda x: hashlib.sha256(x.encode()).hexdigest())
+            df = pd.get_dummies(df, columns=["source", "browser", "sex"], drop_first=False)
+            
+            # Store transaction
+            row = df.iloc[0]
+            with get_connection() as conn:
+                conn.execute("""
+                    INSERT INTO transactions (
+                        signup_time, purchase_time, purchase_value, age, time_to_purchase,
+                        device_id_count, ip_address_count, hashed_user_id, hashed_device_id, hashed_ip_address,
+                        source_Ads, source_Direct, source_SEO,
+                        browser_Chrome, browser_FireFox, browser_IE, browser_Opera, browser_Safari,
+                        sex_F, sex_M, created_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    str(row.get('signup_time', tx.signup_time)),
+                    str(row.get('purchase_time', tx.purchase_time)),
+                    float(row.get('purchase_value', tx.purchase_value)),
+                    float(row.get('age', tx.age)),
+                    float(row.get('time_to_purchase', 0)),
+                    float(row.get('device_id_count', 1)),
+                    float(row.get('ip_address_count', 1)),
+                    str(row.get('hashed_user_id', '')),
+                    str(row.get('hashed_device_id', '')),
+                    str(row.get('hashed_ip_address', '')),
+                    int(row.get('source_Ads', 0)),
+                    int(row.get('source_Direct', 0)),
+                    int(row.get('source_SEO', 0)),
+                    int(row.get('browser_Chrome', 0)),
+                    int(row.get('browser_FireFox', 0)),
+                    int(row.get('browser_IE', 0)),
+                    int(row.get('browser_Opera', 0)),
+                    int(row.get('browser_Safari', 0)),
+                    int(row.get('sex_F', 0)),
+                    int(row.get('sex_M', 0)),
+                    datetime.now().isoformat()
+                ))
+                transaction_id = conn.lastrowid
+                conn.commit()
+        else:
+            # Call ingest service
+            ingest_result = call_service(f"{INGEST_API_URL}/ingest", "POST", tx.dict())
+            if not ingest_result:
+                raise HTTPException(status_code=500, detail="Failed to ingest transaction")
+            transaction_id = ingest_result.get("transaction_id")
         
-        logging.info(f"Transaction inserted successfully: ID {transaction_id}, Ensemble Score {ensemble_score}")
+        logging.info(f"Transaction ingested: ID {transaction_id}")
+        
+        # Step 2: Detect anomalies
+        if USE_MONOLITHIC:
+            from anomaly_api import detect_anomalies
+            # Get transaction data from database
+            with get_connection() as conn:
+                df = pd.read_sql("SELECT * FROM transactions WHERE transaction_id = ?", conn, params=[transaction_id])
+                if df.empty:
+                    raise HTTPException(status_code=404, detail=f"Transaction {transaction_id} not found")
+                tx_data = df.iloc[0].to_dict()
+            anomaly_result = detect_anomalies(tx_data)
+        else:
+            anomaly_result = call_service(f"{ANOMALY_API_URL}/detect/{transaction_id}", "POST")
+        
+        logging.info(f"Anomaly detection completed for transaction {transaction_id}: {anomaly_result}")
+        
+        # Step 3: Calculate ML scores
+        if USE_MONOLITHIC:
+            from ml_scoring_api import score_transaction
+            ml_result = score_transaction(transaction_id)
+        else:
+            ml_result = call_service(f"{ML_SCORING_API_URL}/score/{transaction_id}", "POST")
+        
+        if not ml_result:
+            raise HTTPException(status_code=500, detail="Failed to calculate ML scores")
+        
+        logging.info(f"ML scores calculated for transaction {transaction_id}: {ml_result}")
+        
+        # Step 4: Verify transaction
+        if USE_MONOLITHIC:
+            from verifier_api import verify_transaction
+            verify_result = verify_transaction(transaction_id)
+        else:
+            verify_result = call_service(f"{VERIFIER_API_URL}/verify/{transaction_id}", "POST")
+        
+        if not verify_result:
+            verify_result = {
+                "transaction_id": transaction_id,
+                "ensemble_score": ml_result.get("ensemble_score"),
+                "status": "unknown",
+                "explanation": None
+            }
+        
+        logging.info(f"Transaction verified: {verify_result}")
+        
+        # Step 5: Generate alerts if high-risk
+        alert_result = None
+        if verify_result.get("status") in ["flag", "deny"]:
+            if USE_MONOLITHIC:
+                from alert_api import generate_alerts
+                alert_result = generate_alerts()
+            else:
+                alert_result = call_service(f"{ALERT_API_URL}/generate_alerts", "POST")
+            logging.info(f"Alerts generated: {alert_result}")
+        
         return {
             "transaction_id": transaction_id,
-            "RF_score": rf_score,
-            "XGB_score": xgb_score,
-            "ensemble_score": ensemble_score
+            "anomaly_detection": anomaly_result,
+            "ml_scores": ml_result,
+            "verification": verify_result,
+            "alerts": alert_result
         }
     
     except HTTPException:
-        raise  # Re-raise validation errors
+        raise
     except Exception as e:
         error_msg = f"Error processing transaction: {str(e)}"
         logging.error(error_msg)
-        return {"error": error_msg}
+        raise HTTPException(status_code=500, detail=error_msg)
 
 # -------------------
-# Batch Transaction Endpoint
-# -------------------
-@app.post("/transactions_batch")
-def add_transactions_batch(txs: List[Transaction]):
-    results = []
-    for i, tx in enumerate(txs):
-        try:
-            # Reuse single transaction logic
-            result = add_transaction(tx)
-            results.append({"index": i, "status": "success", **result})
-        except Exception as e:
-            error_msg = f"Failed for transaction {i}: {str(e)}"
-            logging.error(error_msg)
-            results.append({"index": i, "status": "error", "error": error_msg})
-    
-    logging.info(f"Batch processed: {len(results)} transactions")
-    return {"batch_results": results}
-
-# -------------------
-# Endpoint to fetch all transactions
+# Data Retrieval Endpoints
 # -------------------
 @app.get("/transactions")
 def get_transactions():
+    """Get all transactions from database"""
     try:
         with get_connection() as conn:
-            rows = conn.execute("SELECT * FROM transactions").fetchall()
+            rows = conn.execute("SELECT * FROM transactions ORDER BY transaction_id DESC").fetchall()
             result = []
             for row in rows:
                 d = dict(row)
@@ -262,14 +329,12 @@ def get_transactions():
         logging.error(f"Error fetching transactions: {str(e)}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
-# -------------------
-# Endpoint to fetch all ML scores
-# -------------------
 @app.get("/ml_scores")
 def get_ml_scores():
+    """Get all ML scores from database"""
     try:
         with get_connection() as conn:
-            rows = conn.execute("SELECT * FROM ml_scores").fetchall()
+            rows = conn.execute("SELECT * FROM ml_scores ORDER BY transaction_id DESC").fetchall()
             result = []
             for row in rows:
                 d = dict(row)
@@ -284,3 +349,55 @@ def get_ml_scores():
     except Exception as e:
         logging.error(f"Error fetching ML scores: {str(e)}")
         raise HTTPException(status_code=500, detail="Internal server error")
+
+@app.post("/verify/{transaction_id}")
+def verify_transaction_endpoint(transaction_id: int):
+    """Verify a specific transaction"""
+    try:
+        if USE_MONOLITHIC:
+            from verifier_api import verify_transaction
+            return verify_transaction(transaction_id)
+        else:
+            result = call_service(f"{VERIFIER_API_URL}/verify/{transaction_id}", "POST")
+            if not result:
+                raise HTTPException(status_code=404, detail="Transaction not found")
+            return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Error verifying transaction: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
+@app.post("/verify_last")
+def verify_last_transaction():
+    """Verify the last transaction"""
+    try:
+        with get_connection() as conn:
+            rows = conn.execute("SELECT * FROM ml_scores ORDER BY transaction_id DESC LIMIT 1").fetchall()
+            if not rows:
+                raise HTTPException(status_code=404, detail="No transactions found")
+            transaction_id = dict(rows[0]).get("transaction_id")
+            return verify_transaction_endpoint(transaction_id)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Error verifying last transaction: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
+@app.get("/alerts")
+def get_alerts():
+    """Get all alerts"""
+    try:
+        if USE_MONOLITHIC:
+            from alert_api import get_alerts
+            return get_alerts()
+        else:
+            result = call_service(f"{ALERT_API_URL}/alerts", "GET")
+            return result if result else []
+    except Exception as e:
+        logging.error(f"Error fetching alerts: {str(e)}")
+        return []
+
+@app.get("/health")
+def health():
+    return {"status": "healthy", "service": "main_orchestrator"}
