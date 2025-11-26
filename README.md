@@ -89,10 +89,15 @@ streamlit run app.py
 ## Key Features
 
 **Fully API-based**: All data comes from APIs, no local file reads (except model files)
+
 **Microservices Architecture**: Separate services for each stage of processing
+
 **Complete Flow**: Transaction → Anomaly → ML Score → Verification → Alert
+
 **LLM Integration**: Generates explanations for flagged transactions (if API key available)
+
 **Database Storage**: All data stored in SQLite database
+
 **Streamlit UI**: User-friendly interface for submitting transactions and viewing results
 
 ## Notes
