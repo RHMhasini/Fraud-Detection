@@ -29,3 +29,129 @@
 2025-11-22 18:06:28,718 - INFO - Transaction inserted successfully: ID 12, Ensemble Score 0.43636528457828894
 2025-11-22 18:10:09,566 - INFO - Models loaded successfully.
 2025-11-22 18:10:14,042 - INFO - Models loaded successfully.
+2025-11-22 20:56:16,300 - INFO - Models loaded successfully.
+2025-11-22 20:58:08,931 - INFO - Models loaded successfully.
+2025-11-22 20:58:16,221 - INFO - Models loaded successfully.
+2025-11-22 21:01:19,734 - INFO - Models loaded successfully.
+2025-11-22 21:01:41,066 - INFO - Models loaded successfully.
+2025-11-22 21:01:47,455 - INFO - Models loaded successfully.
+2025-11-22 21:01:53,588 - INFO - Models loaded successfully.
+2025-11-22 21:02:26,472 - INFO - Models loaded successfully.
+2025-11-22 21:07:16,259 - INFO - Models loaded successfully.
+2025-11-22 21:24:29,315 - INFO - Models loaded successfully.
+2025-11-22 21:24:34,316 - INFO - Models loaded successfully.
+2025-11-22 21:25:20,429 - INFO - Transaction validation passed for hashed_user_id: 80fba0ae1c48e3978e43e4efc365e14e12ea0c830ba8ba5b9a2dafc7e3f2ab8b
+2025-11-22 21:25:20,689 - INFO - Transaction inserted successfully: ID 13, Ensemble Score 0.42074617534268866
+2025-11-22 21:25:42,060 - INFO - Transaction validation passed for hashed_user_id: 80fba0ae1c48e3978e43e4efc365e14e12ea0c830ba8ba5b9a2dafc7e3f2ab8b
+2025-11-22 21:25:42,207 - INFO - Transaction inserted successfully: ID 14, Ensemble Score 0.42074617534268866
+2025-11-22 21:26:19,419 - INFO - Transaction validation passed for hashed_user_id: 80fba0ae1c48e3978e43e4efc365e14e12ea0c830ba8ba5b9a2dafc7e3f2ab8b
+2025-11-22 21:26:19,568 - INFO - Transaction inserted successfully: ID 15, Ensemble Score 0.4068358351637321
+2025-11-22 21:27:16,016 - INFO - Transaction validation passed for hashed_user_id: 80fba0ae1c48e3978e43e4efc365e14e12ea0c830ba8ba5b9a2dafc7e3f2ab8b
+2025-11-22 21:27:16,204 - INFO - Transaction inserted successfully: ID 16, Ensemble Score 0.4068358351637321
+2025-11-22 21:33:52,105 - INFO - Models loaded successfully.
+2025-11-22 21:35:41,932 - INFO - Models loaded successfully.
+2025-11-22 21:45:39,044 - INFO - Transaction validation passed for hashed_user_id: 80b6b4d2701219ca5adae9c5de9f7a00cb5773ee51ac5c446cb4b8c31704904e
+2025-11-22 21:45:39,239 - INFO - Transaction inserted successfully: ID 17, Ensemble Score 0.4455665797995048
+2025-11-22 21:52:40,311 - INFO - Models loaded successfully.
+2025-11-22 21:52:47,569 - INFO - Models loaded successfully.
+2025-11-22 21:52:48,319 - INFO - Training data loaded: (151112, 11)
+2025-11-22 21:52:49,348 - INFO - Scalers fitted successfully on training data.
+2025-11-22 21:52:58,491 - INFO - Models loaded successfully.
+2025-11-22 21:52:59,142 - INFO - Training data loaded: (151112, 11)
+2025-11-22 21:53:00,289 - INFO - Scalers fitted successfully on training data.
+2025-11-22 21:53:21,392 - INFO - Models loaded successfully.
+2025-11-22 21:53:21,856 - INFO - Training data loaded: (151112, 11)
+2025-11-22 21:53:22,515 - INFO - Scalers fitted successfully on training data.
+2025-11-22 21:53:43,307 - INFO - Transaction validation passed for hashed_user_id: 80fba0ae1c48e3978e43e4efc365e14e12ea0c830ba8ba5b9a2dafc7e3f2ab8b
+2025-11-22 21:53:43,474 - INFO - Transaction inserted successfully: ID 18, Ensemble Score 0.27086648486570675
+2025-11-22 21:58:04,701 - INFO - Transaction validation passed for hashed_user_id: d766b559ab3f3134dd3800c72b115a50020db1a801ac0c57072c035271a73185
+2025-11-22 21:58:04,868 - INFO - Transaction inserted successfully: ID 19, Ensemble Score 0.25119639081337725
+2025-11-22 21:58:14,365 - INFO - Transaction validation passed for hashed_user_id: d766b559ab3f3134dd3800c72b115a50020db1a801ac0c57072c035271a73185
+2025-11-22 21:58:14,528 - INFO - Transaction inserted successfully: ID 20, Ensemble Score 0.25119639081337725
+2025-11-22 21:58:19,075 - INFO - Transaction validation passed for hashed_user_id: d766b559ab3f3134dd3800c72b115a50020db1a801ac0c57072c035271a73185
+2025-11-22 21:58:19,234 - INFO - Transaction inserted successfully: ID 21, Ensemble Score 0.25119639081337725
+2025-11-22 22:03:12,137 - INFO - Models loaded successfully.
+2025-11-22 22:03:12,790 - INFO - Training data loaded: (151112, 11)
+2025-11-22 22:03:13,477 - INFO - Scalers fitted successfully on training data.
+2025-11-22 22:03:21,870 - INFO - Models loaded successfully.
+2025-11-22 22:03:22,321 - INFO - Training data loaded: (151112, 11)
+2025-11-22 22:03:22,853 - INFO - Scalers fitted successfully on training data.
+2025-11-22 22:09:10,104 - INFO - Models loaded successfully.
+2025-11-22 22:09:10,440 - INFO - Training data loaded: (151112, 11)
+2025-11-22 22:09:10,765 - INFO - Scalers fitted successfully on training data.
+2025-11-22 22:10:33,537 - INFO - Transaction validation passed for hashed_user_id: 80fba0ae1c48e3978e43e4efc365e14e12ea0c830ba8ba5b9a2dafc7e3f2ab8b
+2025-11-22 22:10:33,558 - INFO - Scaling applied - purchase_value: 102222222222220.00 -> 3786008230451.2964, age: 30.0 -> -0.3644, time_to_purchase: 0.0 -> -1.5776
+2025-11-22 22:10:33,685 - INFO - Transaction inserted successfully: ID 22, Ensemble Score 0.27086648486570675
+2025-11-22 22:11:38,552 - INFO - Transaction validation passed for hashed_user_id: bcb15f821479b4d5772bd0ca866c00ad5f926e3580720659cc80d39c9d09802a
+2025-11-22 22:11:38,571 - INFO - Scaling applied - purchase_value: 1011111111111111081984.00 -> 37448559670781894656.0000, age: 30.0 -> -0.3644, time_to_purchase: 0.0 -> -1.5776
+2025-11-22 22:11:38,657 - INFO - Transaction inserted successfully: ID 23, Ensemble Score 0.27086648486570675
+2025-11-22 22:12:23,418 - INFO - Transaction validation passed for hashed_user_id: bcb15f821479b4d5772bd0ca866c00ad5f926e3580720659cc80d39c9d09802a
+2025-11-22 22:12:23,447 - INFO - Scaling applied - purchase_value: 1011111100000000016384.00 -> 37448559259259256832.0000, age: 99.0 -> 7.6423, time_to_purchase: 0.0 -> -1.5776
+2025-11-22 22:12:23,595 - INFO - Transaction inserted successfully: ID 24, Ensemble Score 0.2779278255245404
+2025-11-22 22:16:51,741 - INFO - Transaction validation passed for hashed_user_id: bcb15f821479b4d5772bd0ca866c00ad5f926e3580720659cc80d39c9d09802a
+2025-11-22 22:16:51,762 - INFO - Scaling applied - purchase_value: 9999999999999999931398190359470212947659194368.00 -> 370370370370370332617045932899931919449325568.0000, age: 99.0 -> 7.6423, time_to_purchase: 0.0 -> -1.5776
+2025-11-22 22:16:51,879 - ERROR - Error processing transaction: Input X contains infinity or a value too large for dtype('float32').
+2025-11-22 22:17:03,665 - INFO - Transaction validation passed for hashed_user_id: bcb15f821479b4d5772bd0ca866c00ad5f926e3580720659cc80d39c9d09802a
+2025-11-22 22:17:03,680 - INFO - Scaling applied - purchase_value: 111111111111111109246976.00 -> 4115226337448559640576.0000, age: 99.0 -> 7.6423, time_to_purchase: 0.0 -> -1.5776
+2025-11-22 22:17:03,850 - INFO - Transaction inserted successfully: ID 25, Ensemble Score 0.2779278255245404
+2025-11-22 22:19:20,291 - INFO - Models loaded successfully.
+2025-11-22 22:19:21,201 - INFO - Training data loaded: (151112, 11)
+2025-11-22 22:19:21,897 - INFO - Scalers fitted successfully on training data.
+2025-11-22 22:19:30,518 - INFO - Models loaded successfully.
+2025-11-22 22:19:31,402 - INFO - Training data loaded: (151112, 11)
+2025-11-22 22:19:32,269 - INFO - Scalers fitted successfully on training data.
+2025-11-22 22:19:41,248 - INFO - Models loaded successfully.
+2025-11-22 22:19:42,011 - INFO - Training data loaded: (151112, 11)
+2025-11-22 22:19:42,875 - INFO - Scalers fitted successfully on training data.
+2025-11-22 22:19:49,783 - INFO - Models loaded successfully.
+2025-11-22 22:19:50,581 - INFO - Training data loaded: (151112, 11)
+2025-11-22 22:19:51,230 - INFO - Scalers fitted successfully on training data.
+2025-11-22 22:19:58,702 - INFO - Models loaded successfully.
+2025-11-22 22:19:59,407 - INFO - Training data loaded: (151112, 11)
+2025-11-22 22:20:00,075 - INFO - Scalers fitted successfully on training data.
+2025-11-22 22:20:09,385 - INFO - Models loaded successfully.
+2025-11-22 22:20:10,152 - INFO - Training data loaded: (151112, 11)
+2025-11-22 22:20:10,843 - INFO - Scalers fitted successfully on training data.
+2025-11-22 22:20:21,565 - INFO - Models loaded successfully.
+2025-11-22 22:20:21,989 - INFO - Training data loaded: (151112, 11)
+2025-11-22 22:20:22,598 - INFO - Scalers fitted successfully on training data.
+2025-11-22 22:24:53,370 - INFO - Models loaded successfully.
+2025-11-22 22:24:53,801 - INFO - Training data loaded: (151112, 11)
+2025-11-22 22:24:54,266 - INFO - Scalers fitted successfully on training data.
+2025-11-22 22:26:09,598 - INFO - Models loaded successfully.
+2025-11-22 22:26:10,401 - INFO - Training data loaded: (151112, 11)
+2025-11-22 22:26:11,303 - INFO - Scalers fitted successfully on training data.
+2025-11-22 22:26:18,252 - INFO - Models loaded successfully.
+2025-11-22 22:26:18,871 - INFO - Training data loaded: (151112, 11)
+2025-11-22 22:26:19,716 - INFO - Scalers fitted successfully on training data.
+2025-11-22 22:26:33,309 - INFO - Models loaded successfully.
+2025-11-22 22:26:34,174 - INFO - Training data loaded: (151112, 11)
+2025-11-22 22:26:34,741 - INFO - Scalers fitted successfully on training data.
+2025-11-22 22:26:42,286 - INFO - Models loaded successfully.
+2025-11-22 22:26:42,892 - INFO - Training data loaded: (151112, 11)
+2025-11-22 22:26:43,485 - INFO - Scalers fitted successfully on training data.
+2025-11-22 22:27:09,466 - INFO - Models loaded successfully.
+2025-11-22 22:27:10,111 - INFO - Training data loaded: (151112, 11)
+2025-11-22 22:27:10,688 - INFO - Scalers fitted successfully on training data.
+2025-11-22 22:27:23,421 - INFO - Models loaded successfully.
+2025-11-22 22:27:23,883 - INFO - Training data loaded: (151112, 11)
+2025-11-22 22:27:24,412 - INFO - Scalers fitted successfully on training data.
+2025-11-22 22:28:00,371 - INFO - Models loaded successfully.
+2025-11-22 22:28:00,710 - INFO - Training data loaded: (151112, 11)
+2025-11-22 22:28:00,980 - INFO - Scalers fitted successfully on training data.
+2025-11-22 22:29:54,421 - INFO - Transaction validation passed for hashed_user_id: 80fba0ae1c48e3978e43e4efc365e14e12ea0c830ba8ba5b9a2dafc7e3f2ab8b
+2025-11-22 22:29:54,434 - INFO - Scaling applied - purchase_value: 6.00e+09 -> 222094324.2593, age: 30.0 -> -0.3644, time_to_purchase: 0.0 -> -1.5776
+2025-11-22 22:29:54,524 - INFO - Prediction - RF: 0.3108, XGB: 0.2309, Ensemble: 0.2709, Status: pass
+2025-11-22 22:29:54,532 - INFO - Transaction inserted successfully: ID 26, Ensemble Score 0.27086648486570675
+2025-11-22 22:30:08,024 - INFO - Transaction validation passed for hashed_user_id: 06bcf39048d0763411891de5bf07d31c4c36d16f51e044b787e12a026d74827d
+2025-11-22 22:30:08,073 - INFO - Scaling applied - purchase_value: 6.00e+09 -> 222094324.2593, age: 30.0 -> -0.3644, time_to_purchase: 0.0 -> -1.5776
+2025-11-22 22:30:08,207 - INFO - Prediction - RF: 0.3108, XGB: 0.2309, Ensemble: 0.2709, Status: pass
+2025-11-22 22:30:08,222 - INFO - Transaction inserted successfully: ID 27, Ensemble Score 0.27086648486570675
+2025-11-23 23:12:57,033 - INFO - Transaction validation passed for hashed_user_id: 80fba0ae1c48e3978e43e4efc365e14e12ea0c830ba8ba5b9a2dafc7e3f2ab8b
+2025-11-23 23:12:57,151 - INFO - Scaling applied - purchase_value: 1.02e+12 -> 37860082303.1481, age: 30.0 -> -0.3644, time_to_purchase: 0.0 -> -1.5776
+2025-11-23 23:12:57,410 - INFO - Prediction - RF: 0.3108, XGB: 0.2309, Ensemble: 0.2709, Status: pass
+2025-11-23 23:12:57,420 - INFO - Transaction inserted successfully: ID 28, Ensemble Score 0.27086648486570675
+2025-11-23 23:23:16,463 - INFO - Transaction validation passed for hashed_user_id: test_user
+2025-11-23 23:23:16,619 - INFO - Scaling applied - purchase_value: 1.22e+06 -> 45266.1852, age: 30.0 -> -0.3644, time_to_purchase: 300.0 -> -1.5775
+2025-11-23 23:23:17,139 - INFO - Prediction - RF: 0.2155, XGB: 0.2488, Ensemble: 0.2321, Status: pass
+2025-11-23 23:23:17,159 - INFO - Transaction inserted successfully: ID 29, Ensemble Score 0.2321215551157342
