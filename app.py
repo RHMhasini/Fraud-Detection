@@ -616,12 +616,11 @@ def page_ml_insights():
 def main():
     st.set_page_config(
         page_title="Fraud Detection System",
-        page_icon=" ",
         layout="wide"
     )
     
-    st.title(" Fraud Detection System")
-    status_text = " API Connected" if check_api_connection() else "❌ API Unavailable"
+    st.title("Fraud Detection System")
+    status_text = "API Connected" if check_api_connection() else "API Unavailable"
     st.caption(status_text)
     st.markdown("---")
 
@@ -643,9 +642,9 @@ def main():
         st.markdown("---")
         st.markdown("**API Status**")
         if check_api_connection():
-            st.success("Connected", icon=" ")
+            st.success("Connected")
         else:
-            st.error("Disconnected", icon=" ")
+            st.error("Disconnected")
 
     page_map = {
         "Submit Transaction": page_submit_transaction,
