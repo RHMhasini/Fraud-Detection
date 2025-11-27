@@ -3,8 +3,12 @@ import requests
 import pandas as pd
 import hashlib
 from datetime import datetime
+from io import BytesIO
 import plotly.express as px
 import plotly.graph_objects as go
+from reportlab.lib.pagesizes import letter
+from reportlab.pdfgen import canvas
+from typing import Tuple
 
 # -------------------
 # Configuration
@@ -72,6 +76,60 @@ def preprocess_transaction(user_id, signup_time, purchase_time, purchase_value,
         "browser": browser,
         "sex": sex
     }
+
+def create_pdf_report(df: pd.DataFrame, summary: dict) -> BytesIO:
+    """Generate a PDF report for download."""
+    buffer = BytesIO()
+    c = canvas.Canvas(buffer, pagesize=letter)
+    width, height = letter
+    y = height - 50
+
+    c.setFont("Helvetica-Bold", 16)
+    c.drawString(40, y, "Fraud Detection Transaction Report")
+    y -= 30
+
+    c.setFont("Helvetica", 12)
+    for label, value in summary.items():
+        c.drawString(40, y, f"{label}: {value}")
+        y -= 18
+        if y < 60:
+            c.showPage()
+            y = height - 50
+            c.setFont("Helvetica", 12)
+
+    y -= 10
+    c.setFont("Helvetica-Bold", 12)
+    c.drawString(40, y, "Transactions")
+    y -= 20
+
+    c.setFont("Helvetica", 10)
+    for _, row in df.head(100).iterrows():
+        line = (
+            f"#{row['transaction_id']} | {row['time']} | ${row['amount']:.2f} | "
+            f"Score {row['score']:.3f} | {row['status'].upper()}"
+        )
+        c.drawString(40, y, line)
+        y -= 14
+        if y < 60:
+            c.showPage()
+            y = height - 40
+            c.setFont("Helvetica", 10)
+
+    c.save()
+    buffer.seek(0)
+    return buffer
+
+def delete_transaction_via_api(transaction_id: int) -> Tuple[bool, str]:
+    """Call API to delete a transaction."""
+    try:
+        response = requests.delete(f"{TRANSACTION_ENDPOINT}/{transaction_id}", timeout=5)
+        if response.status_code == 200:
+            return True, "Transaction deleted successfully."
+        elif response.status_code == 404:
+            return False, f"Transaction {transaction_id} not found."
+        return False, response.json().get("detail", "Unable to delete transaction.")
+    except requests.exceptions.RequestException as exc:
+        return False, f"API error: {exc}"
 
 # -------------------
 # Page: Transaction Submission
@@ -202,7 +260,6 @@ def page_transaction_history():
                 st.info("No transactions found. Please submit a transaction first.")
                 return
             
-            # Merge data
             trans_df = pd.DataFrame(transactions)
             scores_df = pd.DataFrame(scores)
             
@@ -211,22 +268,98 @@ def page_transaction_history():
                 on="transaction_id",
                 how="inner"
             )
+            merged_df["purchase_time_dt"] = pd.to_datetime(merged_df["purchase_time"])
+            merged_df["status"] = merged_df["ensemble_score"].apply(classify_score)
+            merged_df["display_time"] = merged_df["purchase_time_dt"].dt.strftime("%Y-%m-%d %H:%M")
+            merged_df["user_short"] = merged_df["hashed_user_id"].str[:8] + "..."
+            merged_df["device_short"] = merged_df["hashed_device_id"].str[:8] + "..."
             
-            # Prepare display dataframe
+            merged_df[["hashed_user_id", "hashed_device_id", "hashed_ip_address"]] = (
+                merged_df[["hashed_user_id", "hashed_device_id", "hashed_ip_address"]].fillna("")
+            )
+            min_date = merged_df["purchase_time_dt"].min().date()
+            max_date = merged_df["purchase_time_dt"].max().date()
+
+            search_term = ""
+            status_filter = []
+            score_range = (0.0, 1.0)
+            date_range = (min_date, max_date)
+            delete_id = None
+
+            with st.expander("Filters & Actions", expanded=False):
+                search_term = st.text_input("Search (transaction ID, user hash, device hash, IP)")
+                status_filter = st.multiselect("Status filter", ["pass", "flag", "deny"])
+                score_range = st.slider(
+                    "Score range",
+                    min_value=0.0,
+                    max_value=1.0,
+                    value=(0.0, 1.0),
+                    step=0.01
+                )
+                date_range = st.date_input(
+                    "Purchase date range",
+                    value=(min_date, max_date)
+                )
+                col_select, col_action = st.columns([2, 1])
+                delete_id = col_select.selectbox(
+                    "Select transaction to delete",
+                    merged_df["transaction_id"].tolist(),
+                    format_func=lambda x: f"#{x}"
+                )
+                if col_action.button("Delete Transaction", use_container_width=True):
+                    success, message = delete_transaction_via_api(delete_id)
+                    if success:
+                        st.success(message)
+                        st.rerun()
+                    else:
+                        st.error(message)
+                st.caption("Tip: apply filters before deleting or exporting reports.")
+
+            filtered_df = merged_df.copy()
+            if search_term:
+                term = search_term.lower()
+                mask = (
+                    filtered_df["transaction_id"].astype(str).str.contains(term, case=False)
+                    | filtered_df["hashed_user_id"].str.lower().str.contains(term)
+                    | filtered_df["hashed_device_id"].str.lower().str.contains(term)
+                    | filtered_df["hashed_ip_address"].str.lower().str.contains(term)
+                )
+                filtered_df = filtered_df[mask]
+            if status_filter:
+                filtered_df = filtered_df[filtered_df["status"].isin(status_filter)]
+            filtered_df = filtered_df[
+                (filtered_df["ensemble_score"] >= score_range[0]) &
+                (filtered_df["ensemble_score"] <= score_range[1])
+            ]
+            start_date = end_date = None
+            if isinstance(date_range, (list, tuple)) and len(date_range) == 2:
+                start_date = pd.to_datetime(date_range[0])
+                end_date = pd.to_datetime(date_range[1]) + pd.Timedelta(days=1)
+            elif date_range:
+                start_date = pd.to_datetime(date_range)
+                end_date = start_date + pd.Timedelta(days=1)
+            if start_date is not None:
+                filtered_df = filtered_df[
+                    (filtered_df["purchase_time_dt"] >= start_date) &
+                    (filtered_df["purchase_time_dt"] < end_date)
+                ]
+
+            if filtered_df.empty:
+                st.warning("No transactions match the selected filters.")
+                return
+
             display_df = pd.DataFrame({
-                "transaction_id": merged_df["transaction_id"],
-                "user": merged_df["hashed_user_id"].str[:8] + "...",
-                "amount": merged_df["purchase_value"],
-                "time": pd.to_datetime(merged_df["purchase_time"]).dt.strftime("%Y-%m-%d %H:%M"),
-                "device": merged_df["hashed_device_id"].str[:8] + "...",
-                "score": merged_df["ensemble_score"],
-                "status": merged_df["ensemble_score"].apply(classify_score)
+                "transaction_id": filtered_df["transaction_id"],
+                "user": filtered_df["user_short"],
+                "amount": filtered_df["purchase_value"],
+                "time": filtered_df["display_time"],
+                "device": filtered_df["device_short"],
+                "score": filtered_df["ensemble_score"],
+                "status": filtered_df["status"]
             })
-            
-            # Display table with color coding
+
             st.subheader("All Transactions")
-            
-            # Create styled dataframe
+
             def color_rows(row):
                 score = row["score"]
                 if score < THRESHOLD_PASS:
@@ -235,22 +368,39 @@ def page_transaction_history():
                     return ['background-color: #EFD033'] * len(row)
                 else:
                     return ['background-color: #c30F18'] * len(row)
-            
+
             styled_df = display_df.style.apply(color_rows, axis=1)
             st.dataframe(styled_df, use_container_width=True, hide_index=True)
-            
-            # Summary statistics
+
+            summary_stats = {
+                "Total Transactions": len(display_df),
+                "Passed": int((display_df["status"] == "pass").sum()),
+                "Flagged": int((display_df["status"] == "flag").sum()),
+                "Denied": int((display_df["status"] == "deny").sum())
+            }
+
             st.subheader("Summary Statistics")
             col1, col2, col3, col4 = st.columns(4)
             with col1:
-                st.metric("Total Transactions", len(display_df))
+                st.metric("Total Transactions", summary_stats["Total Transactions"])
             with col2:
-                st.metric("Passed", len(display_df[display_df["status"] == "pass"]))
+                st.metric("Passed", summary_stats["Passed"])
             with col3:
-                st.metric("Flagged", len(display_df[display_df["status"] == "flag"]))
+                st.metric("Flagged", summary_stats["Flagged"])
             with col4:
-                st.metric("Denied", len(display_df[display_df["status"] == "deny"]))
-                
+                st.metric("Denied", summary_stats["Denied"])
+
+            pdf_buffer = create_pdf_report(display_df, summary_stats)
+            download_col, _ = st.columns([1, 3])
+            with download_col:
+                st.download_button(
+                    "📄 Download PDF Report",
+                    data=pdf_buffer,
+                    file_name="transaction_report.pdf",
+                    mime="application/pdf",
+                    use_container_width=False,
+                    type="secondary"
+                )
         except requests.exceptions.RequestException as e:
             st.error(f"❌ Connection error: {str(e)}")
         except Exception as e:
@@ -471,31 +621,40 @@ def main():
     )
     
     st.title("🔒 Fraud Detection System")
+    status_text = "✅ API Connected" if check_api_connection() else "❌ API Unavailable"
+    st.caption(status_text)
     st.markdown("---")
-    
-    # Sidebar navigation
-    page = st.sidebar.selectbox(
-        "Navigate",
-        ["Submit Transaction", "Transaction History", "Alerts", "ML Insights"]
-    )
-    
-    # Route to pages
-    if page == "Submit Transaction":
-        page_submit_transaction()
-    elif page == "Transaction History":
-        page_transaction_history()
-    elif page == "Alerts":
-        page_alerts()
-    elif page == "ML Insights":
-        page_ml_insights()
-    
-    # Footer
-    st.sidebar.markdown("---")
-    st.sidebar.markdown("**API Status:**")
-    if check_api_connection():
-        st.sidebar.success("✅ Connected")
-    else:
-        st.sidebar.error("❌ Disconnected")
+
+    pages = [
+        "Submit Transaction",
+        "Transaction History",
+        "Alerts",
+        "ML Insights"
+    ]
+
+    with st.sidebar:
+        st.markdown("### Navigation")
+        selected_page = st.radio(
+            "Pages",
+            pages,
+            index=0,
+            label_visibility="collapsed"
+        )
+        st.markdown("---")
+        st.markdown("**API Status**")
+        if check_api_connection():
+            st.success("Connected", icon="✅")
+        else:
+            st.error("Disconnected", icon="⚠️")
+
+    page_map = {
+        "Submit Transaction": page_submit_transaction,
+        "Transaction History": page_transaction_history,
+        "Alerts": page_alerts,
+        "ML Insights": page_ml_insights
+    }
+
+    page_map[selected_page]()
 
 if __name__ == "__main__":
     main()
