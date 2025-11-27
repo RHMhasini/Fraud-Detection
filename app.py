@@ -135,10 +135,10 @@ def delete_transaction_via_api(transaction_id: int) -> Tuple[bool, str]:
 # Page: Transaction Submission
 # -------------------
 def page_submit_transaction():
-    st.header("📝 Submit Transaction")
+    st.header(" Submit Transaction")
     
     if not check_api_connection():
-        st.error("⚠️ API unavailable. Please ensure the FastAPI backend is running at http://127.0.0.1:8000")
+        st.error(" API unavailable. Please ensure the FastAPI backend is running at http://127.0.0.1:8000")
         return
     
     with st.form("transaction_form"):
@@ -186,7 +186,7 @@ def page_submit_transaction():
                     if "error" in result:
                         st.error(f"Error: {result['error']}")
                     else:
-                        st.success("✅ Transaction submitted successfully!")
+                        st.success(" Transaction submitted successfully!")
                         
                         # Extract ML scores from result
                         ml_scores = result.get("ml_scores", {})
@@ -209,18 +209,18 @@ def page_submit_transaction():
                         # Display anomaly detection results
                         anomaly = result.get("anomaly_detection", {})
                         if anomaly.get("has_anomalies"):
-                            st.warning(f"⚠️ Anomalies detected: {', '.join(anomaly.get('anomalies', []))}")
+                            st.warning(f" Anomalies detected: {', '.join(anomaly.get('anomalies', []))}")
                         
                         # Display verification and explanation
                         if verification.get("status") in ["flag", "deny"]:
                             if verification.get("explanation"):
-                                st.subheader("📋 Explanation")
+                                st.subheader(" Explanation")
                                 st.info(verification["explanation"])
                         
                         # Display alerts if generated
                         alerts = result.get("alerts", {})
                         if alerts and alerts.get("alert_count", 0) > 0:
-                            st.error(f"🚨 {alerts.get('alert_count', 0)} alert(s) generated!")
+                            st.error(f" {alerts.get('alert_count', 0)} alert(s) generated!")
                 else:
                     error_detail = response.json().get("detail", "Unknown error")
                     st.error(f"❌ API Error: {error_detail}")
@@ -234,13 +234,13 @@ def page_submit_transaction():
 # Page: Transaction History Dashboard
 # -------------------
 def page_transaction_history():
-    st.header("📊 Transaction History Dashboard")
+    st.header(" Transaction History Dashboard")
     
     if not check_api_connection():
-        st.error("⚠️ API unavailable. Please ensure the FastAPI backend is running at http://127.0.0.1:8000")
+        st.error(" API unavailable. Please ensure the FastAPI backend is running at http://127.0.0.1:8000")
         return
     
-    if st.button("🔄 Refresh Data", use_container_width=True):
+    if st.button(" Refresh Data", use_container_width=True):
         st.rerun()
     
     with st.spinner("Loading transaction data..."):
@@ -394,7 +394,7 @@ def page_transaction_history():
             download_col, _ = st.columns([1, 3])
             with download_col:
                 st.download_button(
-                    "📄 Download PDF Report",
+                    " Download PDF Report",
                     data=pdf_buffer,
                     file_name="transaction_report.pdf",
                     mime="application/pdf",
@@ -410,10 +410,10 @@ def page_transaction_history():
 # Page: Alerts
 # -------------------
 def page_alerts():
-    st.header("🚨 High-Risk Transaction Alerts")
+    st.header(" High-Risk Transaction Alerts")
     
     if not check_api_connection():
-        st.error("⚠️ API unavailable. Please ensure the FastAPI backend is running at http://127.0.0.1:8000")
+        st.error(" API unavailable. Please ensure the FastAPI backend is running at http://127.0.0.1:8000")
         return
     
     # Cache for explanations to avoid repeated API calls
@@ -450,17 +450,17 @@ def page_alerts():
             high_risk = merged_df[merged_df["ensemble_score"] >= THRESHOLD_DENY].copy()
             
             if high_risk.empty:
-                st.success("✅ No high-risk transactions detected.")
+                st.success(" No high-risk transactions detected.")
                 return
             
-            st.warning(f"⚠️ Found {len(high_risk)} high-risk transaction(s)")
+            st.warning(f" Found {len(high_risk)} high-risk transaction(s)")
             
             # Display each alert
             for idx, row in high_risk.iterrows():
                 transaction_id = int(row["transaction_id"])
                 ensemble_score = row["ensemble_score"]
                 
-                with st.expander(f"🚨 Transaction #{transaction_id} - Score: {ensemble_score:.3f}", expanded=True):
+                with st.expander(f" Transaction #{transaction_id} - Score: {ensemble_score:.3f}", expanded=True):
                     # Get explanation (cached or fetch)
                     if transaction_id not in st.session_state.alert_explanations:
                         with st.spinner("Generating explanation..."):
@@ -499,10 +499,10 @@ def page_alerts():
 # Page: ML Insights
 # -------------------
 def page_ml_insights():
-    st.header("🤖 ML Model Insights")
+    st.header(" ML Model Insights")
     
     if not check_api_connection():
-        st.error("⚠️ API unavailable. Please ensure the FastAPI backend is running at http://127.0.0.1:8000")
+        st.error(" API unavailable. Please ensure the FastAPI backend is running at http://127.0.0.1:8000")
         return
     
     with st.spinner("Loading ML scores..."):
@@ -523,7 +523,7 @@ def page_ml_insights():
             scores_df = pd.DataFrame(scores)
             
             # Histogram of ensemble scores
-            st.subheader("📈 Score Distribution")
+            st.subheader(" Score Distribution")
             fig = px.histogram(
                 scores_df,
                 x="ensemble_score",
@@ -535,7 +535,7 @@ def page_ml_insights():
             st.plotly_chart(fig, use_container_width=True)
             
             # Feature importance (hardcoded based on typical RF/XGB outputs)
-            st.subheader("🔍 Feature Importance")
+            st.subheader(" Feature Importance")
             feature_importance = {
                 "purchase_value": 0.4,
                 "device_id_count": 0.3,
@@ -564,7 +564,7 @@ def page_ml_insights():
             st.plotly_chart(fig_bar, use_container_width=True)
             
             # Threshold slider
-            st.subheader("⚙️ Threshold Configuration")
+            st.subheader(" Threshold Configuration")
             threshold = st.slider(
                 "Fraud Detection Threshold",
                 min_value=0.0,
@@ -575,7 +575,7 @@ def page_ml_insights():
             )
             
             # Dynamic classification table
-            st.subheader("📊 Classification Preview")
+            st.subheader(" Classification Preview")
             preview_df = scores_df[["transaction_id", "ensemble_score"]].copy()
             preview_df["status"] = preview_df["ensemble_score"].apply(classify_score)
             
@@ -593,7 +593,7 @@ def page_ml_insights():
             st.dataframe(styled_preview, use_container_width=True, hide_index=True)
             
             # Model explanation
-            st.subheader("📚 Model Information")
+            st.subheader(" Model Information")
             st.info("""
             **The system uses an ensemble of Random Forest and XGBoost models for fraud detection.**
             
@@ -616,12 +616,12 @@ def page_ml_insights():
 def main():
     st.set_page_config(
         page_title="Fraud Detection System",
-        page_icon="🔒",
+        page_icon=" ",
         layout="wide"
     )
     
-    st.title("🔒 Fraud Detection System")
-    status_text = "✅ API Connected" if check_api_connection() else "❌ API Unavailable"
+    st.title(" Fraud Detection System")
+    status_text = " API Connected" if check_api_connection() else "❌ API Unavailable"
     st.caption(status_text)
     st.markdown("---")
 
@@ -643,9 +643,9 @@ def main():
         st.markdown("---")
         st.markdown("**API Status**")
         if check_api_connection():
-            st.success("Connected", icon="✅")
+            st.success("Connected", icon=" ")
         else:
-            st.error("Disconnected", icon="⚠️")
+            st.error("Disconnected", icon=" ")
 
     page_map = {
         "Submit Transaction": page_submit_transaction,
