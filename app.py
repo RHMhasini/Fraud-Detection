@@ -19,6 +19,7 @@ TRANSACTIONS_ENDPOINT = f"{API_BASE_URL}/transactions"
 ML_SCORES_ENDPOINT = f"{API_BASE_URL}/ml_scores"
 VERIFY_LAST_ENDPOINT = f"{API_BASE_URL}/verify_last"
 VERIFY_ENDPOINT = f"{API_BASE_URL}/verify"
+VERIFICATIONS_ENDPOINT = f"{API_BASE_URL}/verifications"
 
 # Thresholds - Matched with API
 # - Pass: < 0.3 (30% fraud probability) - Low risk
@@ -245,9 +246,10 @@ def page_transaction_history():
     
     with st.spinner("Loading transaction data..."):
         try:
-            # Fetch transactions and scores
+            # Fetch transactions, scores, and verifications
             trans_response = requests.get(TRANSACTIONS_ENDPOINT)
             scores_response = requests.get(ML_SCORES_ENDPOINT)
+            verifications_response = requests.get(VERIFICATIONS_ENDPOINT)
             
             if trans_response.status_code != 200 or scores_response.status_code != 200:
                 st.error("Failed to fetch data from API")
@@ -255,6 +257,7 @@ def page_transaction_history():
             
             transactions = trans_response.json()
             scores = scores_response.json()
+            verifications = verifications_response.json() if verifications_response.status_code == 200 else []
             
             if not transactions or not scores:
                 st.info("No transactions found. Please submit a transaction first.")
@@ -268,7 +271,19 @@ def page_transaction_history():
                 on="transaction_id",
                 how="inner"
             )
-            merged_df["purchase_time_dt"] = pd.to_datetime(merged_df["purchase_time"])
+            
+            # Merge verifications to get explanations
+            if verifications:
+                verifications_df = pd.DataFrame(verifications)
+                merged_df = merged_df.merge(
+                    verifications_df[["transaction_id", "explanation"]],
+                    on="transaction_id",
+                    how="left"
+                )
+            else:
+                merged_df["explanation"] = None
+            
+            merged_df["purchase_time_dt"] = pd.to_datetime(merged_df["purchase_time"], format='ISO8601', errors='coerce')
             merged_df["status"] = merged_df["ensemble_score"].apply(classify_score)
             merged_df["display_time"] = merged_df["purchase_time_dt"].dt.strftime("%Y-%m-%d %H:%M")
             merged_df["user_short"] = merged_df["hashed_user_id"].str[:8] + "..."
@@ -348,6 +363,7 @@ def page_transaction_history():
                 st.warning("No transactions match the selected filters.")
                 return
 
+            # Format explanations for display
             display_df = pd.DataFrame({
                 "transaction_id": filtered_df["transaction_id"],
                 "user": filtered_df["user_short"],
@@ -357,6 +373,18 @@ def page_transaction_history():
                 "score": filtered_df["ensemble_score"],
                 "status": filtered_df["status"]
             })
+            
+            # Add explanation column (only for flagged/denied)
+            explanations_dict = {}
+            for idx, row in filtered_df.iterrows():
+                tx_id = row["transaction_id"]
+                status = row["status"]
+                if status in ["flag", "deny"]:
+                    explanation = row.get("explanation")
+                    if pd.notna(explanation) and explanation:
+                        explanations_dict[tx_id] = explanation
+            
+            display_df["explanation"] = display_df["transaction_id"].map(explanations_dict)
 
             st.subheader("All Transactions")
 
@@ -369,8 +397,33 @@ def page_transaction_history():
                 else:
                     return ['background-color: #c30F18'] * len(row)
 
-            styled_df = display_df.style.apply(color_rows, axis=1)
+            styled_df = display_df[["transaction_id", "user", "amount", "time", "device", "score", "status"]].style.apply(color_rows, axis=1)
             st.dataframe(styled_df, use_container_width=True, hide_index=True)
+            
+            # Show explanations below table for flagged/denied transactions
+            flagged_denied = display_df[display_df["status"].isin(["flag", "deny"])]
+            if not flagged_denied.empty:
+                st.subheader("Explanations for Flagged/Denied Transactions")
+                for idx, row in flagged_denied.iterrows():
+                    tx_id = int(row["transaction_id"])
+                    status = row["status"]
+                    explanation = row.get("explanation")
+                    
+                    with st.expander(f"Transaction #{tx_id} - {status.upper()}", expanded=False):
+                        if pd.notna(explanation) and explanation:
+                            st.info(explanation)
+                        else:
+                            if st.button(f"Generate Explanation", key=f"gen_expl_{tx_id}"):
+                                with st.spinner("Generating explanation..."):
+                                    try:
+                                        verify_response = requests.post(f"{VERIFY_ENDPOINT}/{tx_id}")
+                                        if verify_response.status_code == 200:
+                                            verify_result = verify_response.json()
+                                            explanation = verify_result.get("explanation", "Explanation unavailable.")
+                                            st.info(explanation)
+                                            st.rerun()
+                                    except Exception as e:
+                                        st.error(f"Failed to generate explanation: {str(e)}")
 
             summary_stats = {
                 "Total Transactions": len(display_df),
@@ -468,13 +521,13 @@ def page_alerts():
                                 verify_response = requests.post(f"{VERIFY_ENDPOINT}/{transaction_id}")
                                 if verify_response.status_code == 200:
                                     verify_result = verify_response.json()
-                                    explanation = verify_result.get("explanation", f"High-risk transaction with score {ensemble_score:.3f}. Review required.")
+                                    explanation = verify_result.get("explanation", "This transaction requires manual review due to suspicious activity patterns.")
                                     st.session_state.alert_explanations[transaction_id] = explanation
                                 else:
-                                    explanation = f"Unable to generate explanation. Score: {ensemble_score:.3f}"
+                                    explanation = "This transaction requires manual review due to suspicious activity patterns."
                                     st.session_state.alert_explanations[transaction_id] = explanation
                             except:
-                                explanation = f"High-risk transaction with score {ensemble_score:.3f}. Review required."
+                                explanation = "This transaction requires manual review due to suspicious activity patterns."
                                 st.session_state.alert_explanations[transaction_id] = explanation
                     else:
                         explanation = st.session_state.alert_explanations[transaction_id]

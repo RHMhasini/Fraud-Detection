@@ -81,6 +81,14 @@ with get_connection() as conn:
         created_at TEXT
     )
     """)
+    # Add created_at column if it doesn't exist (for existing databases)
+    try:
+        conn.execute("ALTER TABLE transactions ADD COLUMN created_at TEXT")
+        conn.commit()
+    except sqlite3.OperationalError:
+        # Column already exists, ignore
+        pass
+    
     conn.execute("""
     CREATE TABLE IF NOT EXISTS ml_scores (
         score_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -91,6 +99,13 @@ with get_connection() as conn:
         created_at TEXT
     )
     """)
+    # Add created_at column if it doesn't exist (for existing databases)
+    try:
+        conn.execute("ALTER TABLE ml_scores ADD COLUMN created_at TEXT")
+        conn.commit()
+    except sqlite3.OperationalError:
+        # Column already exists, ignore
+        pass
     conn.commit()
 
 # -------------------
@@ -193,8 +208,10 @@ def process_transaction(tx: RawTransaction):
             
             # Store transaction
             row = df.iloc[0]
-            with get_connection() as conn:
-                conn.execute("""
+            conn = get_connection()
+            try:
+                cursor = conn.cursor()
+                cursor.execute("""
                     INSERT INTO transactions (
                         signup_time, purchase_time, purchase_value, age, time_to_purchase,
                         device_id_count, ip_address_count, hashed_user_id, hashed_device_id, hashed_ip_address,
@@ -225,8 +242,10 @@ def process_transaction(tx: RawTransaction):
                     int(row.get('sex_M', 0)),
                     datetime.now().isoformat()
                 ))
-                transaction_id = conn.lastrowid
+                transaction_id = cursor.lastrowid
                 conn.commit()
+            finally:
+                conn.close()
         else:
             # Call ingest service
             ingest_result = call_service(f"{INGEST_API_URL}/ingest", "POST", tx.dict())
@@ -350,6 +369,37 @@ def get_ml_scores():
         logging.error(f"Error fetching ML scores: {str(e)}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
+@app.delete("/transaction/{transaction_id}")
+def delete_transaction(transaction_id: int):
+    """Delete a transaction and all related records."""
+    try:
+        with get_connection() as conn:
+            cur = conn.cursor()
+            tables = [
+                ("ml_scores", "transaction_id"),
+                ("verifications", "transaction_id"),
+                ("alerts", "transaction_id"),
+                ("anomaly_detections", "transaction_id"),
+                ("transactions", "transaction_id")
+            ]
+            deleted_counts = {}
+            for table, column in tables:
+                try:
+                    cur.execute(f"DELETE FROM {table} WHERE {column} = ?", (transaction_id,))
+                    deleted_counts[table] = cur.rowcount
+                except sqlite3.OperationalError:
+                    deleted_counts[table] = 0
+            conn.commit()
+            if deleted_counts.get("transactions", 0) == 0:
+                raise HTTPException(status_code=404, detail=f"Transaction {transaction_id} not found")
+            logging.info(f"Deleted transaction {transaction_id}: {deleted_counts}")
+            return {"transaction_id": transaction_id, "deleted": deleted_counts}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Error deleting transaction {transaction_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
 @app.post("/verify/{transaction_id}")
 def verify_transaction_endpoint(transaction_id: int):
     """Verify a specific transaction"""
@@ -396,6 +446,38 @@ def get_alerts():
             return result if result else []
     except Exception as e:
         logging.error(f"Error fetching alerts: {str(e)}")
+        return []
+
+@app.get("/verifications")
+def get_verifications():
+    """Get all verifications with explanations"""
+    try:
+        conn = get_connection()
+        try:
+            df = pd.read_sql("""
+                SELECT transaction_id, ensemble_score, status, explanation, created_at
+                FROM verifications
+                ORDER BY transaction_id DESC
+            """, conn)
+            # Handle byte encoding issues
+            result = []
+            for _, row in df.iterrows():
+                d = row.to_dict()
+                for k, v in d.items():
+                    if isinstance(v, bytes):
+                        try:
+                            d[k] = v.decode('utf-8')
+                        except UnicodeDecodeError:
+                            d[k] = v.decode('latin-1', errors='ignore')
+                result.append(d)
+            return result
+        finally:
+            conn.close()
+    except sqlite3.OperationalError:
+        # Table doesn't exist yet, return empty list
+        return []
+    except Exception as e:
+        logging.error(f"Error fetching verifications: {str(e)}")
         return []
 
 @app.get("/health")

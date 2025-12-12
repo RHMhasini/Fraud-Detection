@@ -31,8 +31,8 @@ DB_PATH = DATABASE_DIR / "fraud.db"
 THRESHOLD_PASS = 0.3
 THRESHOLD_DENY = 0.6
 
-# Groq API Configuration
-GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+# DeepSeek API Configuration
+DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY", "***REMOVED***")
 
 def get_db():
     return sqlite3.connect(DB_PATH)
@@ -100,39 +100,135 @@ def get_ml_score_from_api(transaction_id: int) -> dict:
         finally:
             conn.close()
 
+def format_transaction_for_explanation(transaction_data: dict) -> str:
+    """Format transaction data into human-readable format for LLM"""
+    details = []
+    
+    # Purchase value
+    if 'purchase_value' in transaction_data:
+        details.append(f"Purchase amount: ${transaction_data['purchase_value']:,.2f}")
+    
+    # Age
+    if 'age' in transaction_data:
+        details.append(f"User age: {int(transaction_data['age'])}")
+    
+    # Time to purchase (if available)
+    if 'time_to_purchase' in transaction_data:
+        time_to_purchase = transaction_data['time_to_purchase']
+        if time_to_purchase < 60:
+            details.append(f"Purchase occurred within {time_to_purchase:.0f} seconds of account signup (very fast)")
+        elif time_to_purchase < 3600:
+            details.append(f"Purchase occurred within {time_to_purchase/60:.1f} minutes of account signup")
+        else:
+            details.append(f"Purchase occurred {time_to_purchase/3600:.1f} hours after account signup")
+    
+    # Device count
+    if 'device_id_count' in transaction_data:
+        device_count = transaction_data.get('device_id_count', 1)
+        if device_count > 10:
+            details.append(f"This device has been used for {device_count:.0f} transactions (unusually high)")
+        elif device_count > 5:
+            details.append(f"This device has been used for {device_count:.0f} transactions")
+    
+    # IP count
+    if 'ip_address_count' in transaction_data:
+        ip_count = transaction_data.get('ip_address_count', 1)
+        if ip_count > 10:
+            details.append(f"This IP address has been used for {ip_count:.0f} transactions (unusually high)")
+        elif ip_count > 5:
+            details.append(f"This IP address has been used for {ip_count:.0f} transactions")
+    
+    # Source
+    if 'source_Ads' in transaction_data:
+        if transaction_data.get('source_Ads'):
+            details.append("Traffic source: Advertisement")
+        elif transaction_data.get('source_Direct'):
+            details.append("Traffic source: Direct")
+        elif transaction_data.get('source_SEO'):
+            details.append("Traffic source: Search Engine")
+    
+    # Browser
+    browsers = ['Chrome', 'FireFox', 'IE', 'Opera', 'Safari']
+    for browser in browsers:
+        if transaction_data.get(f'browser_{browser}'):
+            details.append(f"Browser: {browser}")
+            break
+    
+    # Purchase time (if available)
+    if 'purchase_time' in transaction_data:
+        try:
+            purchase_time = pd.to_datetime(transaction_data['purchase_time'])
+            hour = purchase_time.hour
+            if hour < 6 or hour > 23:
+                details.append(f"Purchase time: {purchase_time.strftime('%Y-%m-%d %H:%M')} (late night/early morning)")
+            else:
+                details.append(f"Purchase time: {purchase_time.strftime('%Y-%m-%d %H:%M')}")
+        except:
+            pass
+    
+    return "\n".join(details) if details else "Transaction details available for review."
+
 def generate_explanation(transaction_data: dict, ensemble_score: float, status: str) -> str:
-    """Generate LLM explanation for flagged/denied transactions"""
-    if not GROQ_API_KEY:
-        return f"LLM explanation unavailable: GROQ_API_KEY not set. Transaction {status} based on score {ensemble_score:.3f}."
+    """Generate human-friendly LLM explanation for flagged/denied transactions"""
+    if not DEEPSEEK_API_KEY:
+        return "Transaction requires manual review due to suspicious activity patterns."
     
     try:
-        client = OpenAI(api_key=GROQ_API_KEY, base_url="https://api.groq.com/openai/v1")
-        prompt = f"""
-        Analyze the following transaction data and explain why it was classified as '{status}' (ensemble fraud score: {ensemble_score:.3f}).
-        Provide a human-readable explanation based on the details. Focus on suspicious patterns like high device counts, IP counts, purchase value, or other anomalies.
-        Transaction Data: {json.dumps(transaction_data, indent=2, default=str)}
-        Keep the explanation concise (1-2 sentences) and natural.
-        """
+        client = OpenAI(api_key=DEEPSEEK_API_KEY, base_url="https://api.deepseek.com/v1")
+        
+        # Format transaction details in human-readable way
+        transaction_summary = format_transaction_for_explanation(transaction_data)
+        
+        # Determine severity level
+        severity = "high-risk" if status == "deny" else "moderate-risk"
+        action = "denied" if status == "deny" else "flagged for review"
+        
+        prompt = f"""You are a fraud detection analyst explaining why a transaction was {action}.
+
+Transaction Details:
+{transaction_summary}
+
+This is a {severity} transaction that has been {action}.
+
+Provide a concise, human-friendly explanation (1-2 sentences) explaining why this transaction is suspicious. Focus on:
+- Unusual transaction amounts
+- Suspicious timing patterns
+- Multiple transactions from same device/IP
+- Account age and activity patterns
+- Any other red flags
+
+DO NOT mention:
+- Machine learning scores
+- Technical terms like "ensemble score" or "ML model"
+- Percentages or numerical scores
+
+Use plain language that a human reviewer would understand. Be specific about what makes this transaction suspicious based on the details provided.
+
+Example good explanations:
+- "The transaction amount is unusually high for a new account created just minutes ago."
+- "This device has been associated with multiple transactions in a short time period, indicating potential account sharing or fraud."
+- "The purchase occurred in the early morning hours from an IP address that has been used for numerous previous transactions."
+
+Provide the explanation now:"""
         
         response = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
+            model="deepseek-chat",
             messages=[
-                {"role": "system", "content": "You are a helpful assistant explaining fraud detection decisions."},
+                {"role": "system", "content": "You are a fraud detection analyst who explains transaction risks in clear, actionable language for human reviewers."},
                 {"role": "user", "content": prompt}
             ],
-            max_tokens=150,
+            max_tokens=200,
             temperature=0.7
         )
         explanation = response.choices[0].message.content.strip()
-        logging.info(f"LLM Explanation generated for Transaction {transaction_data.get('transaction_id')}: {explanation}")
+        logging.info(f"DeepSeek Explanation generated for Transaction {transaction_data.get('transaction_id')}: {explanation}")
         return explanation
     except Exception as e:
-        logging.error(f"LLM API error: {e}")
-        return f"Unable to generate explanation due to API error: {str(e)}. Transaction {status} based on score {ensemble_score:.3f}."
+        logging.error(f"DeepSeek API error: {e}")
+        return "Transaction requires manual review due to suspicious activity patterns. Please review the transaction details for unusual amounts, timing, or device usage."
 
-@app.post("/verify/{transaction_id}")
 def verify_transaction(transaction_id: int):
-    """Verify a transaction and generate explanation if needed"""
+    """Verify a transaction and generate explanation if needed (standalone function)"""
     try:
         # Get transaction data from API
         transaction_data = get_transaction_from_api(transaction_id)
@@ -142,7 +238,7 @@ def verify_transaction(transaction_id: int):
         ensemble_score = score_data.get('ensemble_score')
         
         if ensemble_score is None:
-            raise HTTPException(status_code=404, detail=f"ML score not found for transaction {transaction_id}")
+            raise ValueError(f"ML score not found for transaction {transaction_id}")
         
         # Classify transaction
         status = classify_transaction(ensemble_score)
@@ -186,8 +282,18 @@ def verify_transaction(transaction_id: int):
             "explanation": explanation
         }
     
-    except HTTPException:
+    except Exception as e:
+        logging.error(f"Error verifying transaction: {e}")
         raise
+
+@app.post("/verify/{transaction_id}")
+def verify_transaction_endpoint(transaction_id: int):
+    """FastAPI endpoint wrapper for verify_transaction"""
+    try:
+        result = verify_transaction(transaction_id)
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
         logging.error(f"Error verifying transaction: {e}")
         raise HTTPException(status_code=500, detail=f"Error verifying transaction: {str(e)}")
