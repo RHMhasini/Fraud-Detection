@@ -7,7 +7,6 @@ Original file is located at
     https://colab.research.google.com/drive/1kPS7Qm-s8KSHR39XwQH8MSMP7lzbQzwV
 """
 
-# Read the dataset
 import pandas as pd
 df = pd.read_csv('/content/drive/MyDrive/Fraud_Data.csv')
 
@@ -23,25 +22,19 @@ df.info()
 
 df.shape
 
-# Count of missing values per column
 missing_count = df.isnull().sum()
 
-# Check for duplicate rows
 duplicate_rows = df.duplicated().sum()
 
-# Display descriptive statistics for numerical columns
 print(df.describe())
 
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-# Set style
 sns.set_style("whitegrid")
 
-# Create figure with subplots
 fig, axes = plt.subplots(2, 2, figsize=(14, 10))
 
-# Boxplots
 axes[0, 0].boxplot(df['purchase_value'])
 axes[0, 0].set_title('Boxplot - Purchase Value')
 axes[0, 0].set_ylabel('Value')
@@ -50,7 +43,6 @@ axes[0, 1].boxplot(df['age'])
 axes[0, 1].set_title('Boxplot - Age')
 axes[0, 1].set_ylabel('Age')
 
-# Histograms
 axes[1, 0].hist(df['purchase_value'], bins=50, edgecolor='black')
 axes[1, 0].set_title('Histogram - Purchase Value')
 axes[1, 0].set_xlabel('Purchase Value')
@@ -64,7 +56,6 @@ axes[1, 1].set_ylabel('Frequency')
 plt.tight_layout()
 plt.show()
 
-# Check for outliers in age
 print("Age outliers (IQR method):")
 Q1_age = df['age'].quantile(0.25)
 Q3_age = df['age'].quantile(0.75)
@@ -72,7 +63,6 @@ IQR_age = Q3_age - Q1_age
 outliers_age = df[(df['age'] < Q1_age - 1.5*IQR_age) | (df['age'] > Q3_age + 1.5*IQR_age)]
 print(f"Count: {len(outliers_age)}")
 
-# Check for outliers in purchase_value
 print("\nPurchase Value outliers (IQR method):")
 Q1_pv = df['purchase_value'].quantile(0.25)
 Q3_pv = df['purchase_value'].quantile(0.75)
@@ -80,7 +70,6 @@ IQR_pv = Q3_pv - Q1_pv
 outliers_pv = df[(df['purchase_value'] < Q1_pv - 1.5*IQR_pv) | (df['purchase_value'] > Q3_pv + 1.5*IQR_pv)]
 print(f"Count: {len(outliers_pv)}")
 
-# Correlation with target
 import seaborn as sns
 import matplotlib.pyplot as plt
 
@@ -92,15 +81,12 @@ sns.boxplot(x='class', y='age', data=df)
 plt.title('Age vs Class')
 plt.show()
 
-# Target distribution
 print(df['class'].value_counts())
 print(df['class'].value_counts(normalize=True))
 
 sns.countplot(x='class', data=df)
 plt.title('Target Distribution (class)')
 plt.show()
-
-# Feature relationships
 
 corr = df.corr(numeric_only=True)
 
@@ -112,17 +98,13 @@ plt.title('Correlation Matrix')
 
 plt.show()
 
-# Data quality checks
-# Check unique values in categorical columns
 for col in df.select_dtypes(include='object'):
     print(col, ":", df[col].nunique())
 
-# Quick category frequency check
 for col in df.select_dtypes(include='object'):
     print("\n", col)
     print(df[col].value_counts().head())
 
-# Initial insights summary
 df.describe(include='all')
 
 """# **Data Preprocessing**"""
@@ -130,19 +112,14 @@ df.describe(include='all')
 import pandas as pd
 import hashlib
 
-# 1. Convert to datetime
 df['signup_time'] = pd.to_datetime(df['signup_time'])
 df['purchase_time'] = pd.to_datetime(df['purchase_time'])
 
-# 2. Calculate time difference in seconds
 df['time_to_purchase'] = (df['purchase_time'] - df['signup_time']).dt.total_seconds()
 
-# 3. Calculate value counts (Crucial fraud signals)
 df['device_id_count'] = df.groupby('device_id')['device_id'].transform('count')
 df['ip_address_count'] = df.groupby('ip_address')['ip_address'].transform('count')
 
-# 4. Anonymize/Tokenize IDs using Hashing (for LLM and Security)
-# We convert the IDs to strings and hash them (e.g., using SHA-256)
 def hash_id(value):
     if pd.isna(value):
         return None
@@ -152,42 +129,29 @@ df['hashed_user_id'] = df['user_id'].apply(hash_id)
 df['hashed_device_id'] = df['device_id'].apply(hash_id)
 df['hashed_ip_address'] = df['ip_address'].apply(hash_id)
 
-# Drop raw IDs (user_id, device_id, ip_address) as they are too high cardinality for the RF model
-# The counts capture the fraud signal; the hashes are for LLM context.
 df = df.drop(columns=['user_id', 'device_id', 'ip_address'])
 
-# Save the updated dataframe
-# NOTE: The hashed IDs are still high cardinality and are NOT scaled or OHE'd.
-# They will be used as contextual features for the LLM, not the primary RF model.
 df.to_csv("/content/drive/MyDrive/Fraud_Data.csv", index=False)
 
-# One-Hot Encoding for low-cardinality categorical variables
 df = pd.get_dummies(df, columns=['source', 'browser', 'sex'], drop_first=False)
 
-# Overwrite the CSV again
 df.to_csv("/content/drive/MyDrive/Fraud_Data.csv", index=False)
 
 from sklearn.preprocessing import StandardScaler, MinMaxScaler, RobustScaler
 
-# 1. Standard Scaler for near-symmetrical features
 standard_scaler = StandardScaler()
 df[['age', 'time_to_purchase']] = standard_scaler.fit_transform(df[['age', 'time_to_purchase']])
 
-# 2. MinMax Scaler for count features
 minmax_scaler = MinMaxScaler()
 df[['device_id_count', 'ip_address_count']] = minmax_scaler.fit_transform(df[['device_id_count', 'ip_address_count']])
 
-# 3. Robust Scaler for highly skewed features with extreme outliers
 robust_scaler = RobustScaler()
 df[['purchase_value']] = robust_scaler.fit_transform(df[['purchase_value']])
 
-# Save the updated dataframe, overwriting the CSV
 df.to_csv("/content/drive/MyDrive/Fraud_Data.csv", index=False)
 
 from sklearn.model_selection import train_test_split
 
-# Define columns to exclude from the Random Forest/SMOTE model (X)
-# Hashed IDs and time stamps are high cardinality/redundant for the RF model.
 cols_to_exclude = [
     'class',
     'signup_time',
@@ -197,12 +161,9 @@ cols_to_exclude = [
     'hashed_ip_address'
 ]
 
-# X now contains only scaled numerical and OHE categorical features
 X = df.drop(columns=[col for col in cols_to_exclude if col in df.columns])
 y = df['class']
 
-# 2. Split the data
-# 80% Training, 20% Testing, ensuring class balance is preserved (stratify=y)
 X_train, X_test, y_train, y_test = train_test_split(
     X, y,
     test_size=0.2,
@@ -224,10 +185,6 @@ from sklearn.metrics import recall_score, classification_report
 from tqdm import tqdm
 import time
 
-# =====================================================
-# 1. SMOTE RESAMPLING
-# =====================================================
-
 print("\n--- 1. SMOTE Resampling ---")
 print(f"Original training size: {len(y_train)}")
 print(f"Class-1 count: {y_train.sum()}")
@@ -239,25 +196,19 @@ X_train_smote, y_train_smote = smote.fit_resample(X_train, y_train)
 print("\n--- SMOTE COMPLETE ---")
 print(pd.Series(y_train_smote).value_counts())
 
-# =====================================================
-# 2. ADVANCED RANDOM FOREST TUNING
-# =====================================================
-
 print("\n--- 2. Starting Ultra-Advanced Parameter Search ---")
 print("This WILL take a long time. Please be patient.\n")
 
-# MASSIVE search space
 param_dist = {
-    "n_estimators": [300, 400, 500, 600, 700],      # BIGGER forest
-    "max_depth": [20, 30, 40, None],                # deeper trees
+    "n_estimators": [300, 400, 500, 600, 700],
+    "max_depth": [20, 30, 40, None],
     "min_samples_split": [2, 3, 4, 5, 6],
     "min_samples_leaf": [1, 2, 3],
     "criterion": ["gini"],
-    "class_weight": ["balanced_subsample"],         # boosts recall
-    "max_features": ["sqrt", "log2"],               # stronger feature search
+    "class_weight": ["balanced_subsample"],
+    "max_features": ["sqrt", "log2"],
 }
 
-# EXTENSIVE search → 50 iterations
 n_iter = 50
 param_list = list(ParameterSampler(param_dist, n_iter=n_iter, random_state=42))
 
@@ -271,12 +222,11 @@ for params in progress:
 
     rf = RandomForestClassifier(
         random_state=42,
-        n_jobs=2,           # safe for RAM
-        warm_start=False,   # stable
+        n_jobs=2,
+        warm_start=False,
         **params
     )
 
-    # Train model on *full* SMOTE-resampled dataset
     rf.fit(X_train_smote, y_train_smote)
 
     preds = rf.predict(X_test)
@@ -290,10 +240,6 @@ for params in progress:
         best_params = params
 
 
-# =====================================================
-# 3. FINAL RESULTS
-# =====================================================
-
 print("\n\n--- SEARCH COMPLETE ---")
 print("Best Parameters Found:")
 print(best_params)
@@ -306,7 +252,6 @@ print(classification_report(y_test, final_preds))
 
 import pickle
 
-# Save final model as .pkl file
 with open("fraud_best_model.pkl", "wb") as f:
     pickle.dump(best_model, f)
 
@@ -322,7 +267,6 @@ rf_final = RandomForestClassifier(
     **best_params
 )
 
-# --- Progress Bar Wrapper ---
 with tqdm(total=1, desc="Training Final Random Forest", bar_format="{l_bar}{bar}| {elapsed}") as pbar:
     start = time.time()
     rf_final.fit(X_train_smote, y_train_smote)
@@ -338,24 +282,19 @@ print(classification_report(y_test, y_pred_final))
 
 import xgboost as xgb
 from sklearn.model_selection import RandomizedSearchCV
-from sklearn.metrics import classification_report, make_scorer, recall_score
+from sklearn.metrics import classification_report, make_scorer, recall_score, precision_recall_curve
 from tqdm.auto import tqdm
 import time
 import joblib
+import numpy as np
 
 print("\n--- XGBOOST HYPERPARAMETER TUNING START ---")
 
-# ----------------------------- #
-# 1. Compute scale_pos_weight from ORIGINAL labels
-# ----------------------------- #
 orig_pos = y_train.sum()
 orig_neg = len(y_train) - orig_pos
 scale_pos_weight = orig_neg / orig_pos
 print("Correct scale_pos_weight:", scale_pos_weight)
 
-# ----------------------------- #
-# 2. Define parameter space
-# ----------------------------- #
 param_dist = {
     "n_estimators": [200, 400, 700],
     "max_depth": [3, 5, 7, 9],
@@ -366,21 +305,17 @@ param_dist = {
     "min_child_weight": [1, 3, 5],
 }
 
-# Base XGBoost model
 xgb_base = xgb.XGBClassifier(
     booster='gbtree',
     eval_metric='logloss',
     tree_method='hist',
     random_state=42,
     n_jobs=4,
-    scale_pos_weight=scale_pos_weight  # <-- use original imbalance
+    scale_pos_weight=scale_pos_weight
 )
 
 recall_scorer = make_scorer(recall_score, pos_label=1)
 
-# ----------------------------- #
-# 3. Randomized Search
-# ----------------------------- #
 xgb_random = RandomizedSearchCV(
     estimator=xgb_base,
     param_distributions=param_dist,
@@ -396,7 +331,7 @@ print("\nTuning XGBoost (this may take several minutes)...")
 
 start_time = time.time()
 with tqdm(total=xgb_random.n_iter, desc="XGBoost Tuning Progress") as pbar:
-    xgb_random.fit(X_train, y_train)  # <-- use ORIGINAL data
+    xgb_random.fit(X_train, y_train)
     pbar.update(xgb_random.n_iter)
 end_time = time.time()
 
@@ -405,9 +340,6 @@ print(f"\n--- XGBoost Tuning Complete (Time: {round((end_time-start_time)/60, 2)
 print("\nBest Parameters Found:")
 print(xgb_random.best_params_)
 
-# ----------------------------- #
-# 4. Train Final Model
-# ----------------------------- #
 best_params = xgb_random.best_params_
 
 xgb_final = xgb.XGBClassifier(
@@ -417,27 +349,33 @@ xgb_final = xgb.XGBClassifier(
     tree_method='hist',
     random_state=42,
     n_jobs=4,
-    scale_pos_weight=scale_pos_weight  # <-- ORIGINAL imbalance
+    scale_pos_weight=scale_pos_weight
 )
 
 print("\n--- Training Final XGBoost Model ---")
 with tqdm(total=1, desc="Final Model Training") as pbar:
-    xgb_final.fit(X_train, y_train)  # <-- ORIGINAL data
+    xgb_final.fit(X_train, y_train)
     pbar.update(1)
 print("Final XGBoost model trained.")
 
-# ----------------------------- #
-# 5. Evaluate Final Model
-# ----------------------------- #
-y_pred_final = xgb_final.predict(X_test)
+y_pred_proba = xgb_final.predict_proba(X_test)[:, 1]
 
-print("\n📊 FINAL XGBOOST CLASSIFICATION REPORT:")
-print(classification_report(y_test, y_pred_final))
+precision, recall, thresholds = precision_recall_curve(y_test, y_pred_proba)
+f2_scores = (5 * precision * recall) / (4 * precision + recall + 1e-10)
+optimal_idx = np.argmax(f2_scores)
+optimal_threshold = thresholds[optimal_idx]
 
-# 5. Save the final model
-# ------------------------ #
-joblib.dump(xgb_final, "xgb_fraud_model.pkl")
+print(f"\nOptimal Threshold: {optimal_threshold}")
+
+y_pred_optimal = (y_pred_proba >= optimal_threshold).astype(int)
+
+print("\n FINAL XGBOOST CLASSIFICATION REPORT:")
+print(classification_report(y_test, y_pred_optimal))
+
+print("\nPrediction Distribution:")
+print(pd.Series(y_pred_optimal).value_counts())
+
+joblib.dump({'model': xgb_final, 'threshold': optimal_threshold}, "xgb_fraud_model.pkl")
 print("\nModel saved as xgb_fraud_model.pkl")
 
-df.columns()
-
+df.columns
