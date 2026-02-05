@@ -11,9 +11,7 @@ import hashlib
 
 app = FastAPI(title="Fraud Detection API - Main Orchestrator")
 
-# -------------------
 # Logging Setup
-# -------------------
 LOG_DIR = Path(__file__).resolve().parent / "logs"
 LOG_DIR.mkdir(exist_ok=True)
 LOG_FILE = LOG_DIR / "api.log"
@@ -24,36 +22,27 @@ logging.basicConfig(
     format="%(asctime)s - %(levelname)s - %(message)s"
 )
 
-# -------------------
 # Resolve project paths
-# -------------------
 BASE_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = BASE_DIR.parent
 DATABASE_DIR = PROJECT_ROOT / "database"
 DB_PATH = DATABASE_DIR / "fraud.db"
 
-# -------------------
-# Service URLs (assuming all services run on different ports or same port with different paths)
-# In production, these would be environment variables or service discovery
-# -------------------
+# Service URLs
 INGEST_API_URL = "http://127.0.0.1:8001"
 ANOMALY_API_URL = "http://127.0.0.1:8002"
 ML_SCORING_API_URL = "http://127.0.0.1:8003"
 VERIFIER_API_URL = "http://127.0.0.1:8004"
 ALERT_API_URL = "http://127.0.0.1:8005"
 
-# For development, we can run all services on the same port with different paths
-# Or use a single service that handles all operations
-USE_MONOLITHIC = True  # Set to False to use separate services
+USE_MONOLITHIC = True
 
 def get_connection():
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     return conn
 
-# -------------------
 # Create tables if not exist
-# -------------------
 with get_connection() as conn:
     conn.execute("""
     CREATE TABLE IF NOT EXISTS transactions (
@@ -81,36 +70,29 @@ with get_connection() as conn:
         created_at TEXT
     )
     """)
-    # Add created_at column if it doesn't exist (for existing databases)
     try:
         conn.execute("ALTER TABLE transactions ADD COLUMN created_at TEXT")
         conn.commit()
     except sqlite3.OperationalError:
-        # Column already exists, ignore
         pass
     
     conn.execute("""
     CREATE TABLE IF NOT EXISTS ml_scores (
         score_id INTEGER PRIMARY KEY AUTOINCREMENT,
         transaction_id INTEGER,
-        RF_score REAL,
-        XGB_score REAL,
+        xgb_score REAL,
         ensemble_score REAL,
         created_at TEXT
     )
     """)
-    # Add created_at column if it doesn't exist (for existing databases)
     try:
         conn.execute("ALTER TABLE ml_scores ADD COLUMN created_at TEXT")
         conn.commit()
     except sqlite3.OperationalError:
-        # Column already exists, ignore
         pass
     conn.commit()
 
-# -------------------
 # Pydantic models
-# -------------------
 class RawTransaction(BaseModel):
     signup_time: str
     purchase_time: str
@@ -144,11 +126,8 @@ class Transaction(BaseModel):
     sex_F: int
     sex_M: int
 
-# -------------------
 # Helper Functions
-# -------------------
 def call_service(url: str, method: str = "GET", data: Optional[dict] = None, timeout: int = 5):
-    """Call a microservice API"""
     try:
         if method == "GET":
             response = requests.get(url, timeout=timeout)
@@ -166,25 +145,13 @@ def call_service(url: str, method: str = "GET", data: Optional[dict] = None, tim
         logging.warning(f"Service call error: {url}, error={str(e)}")
         return None
 
-# -------------------
 # Main Transaction Flow Endpoint
-# -------------------
 @app.post("/transaction")
 def process_transaction(tx: RawTransaction):
-    """
-    Main endpoint that orchestrates the fraud detection flow:
-    1. Ingest transaction
-    2. Detect anomalies
-    3. Calculate ML scores
-    4. Verify transaction
-    5. Generate alerts if needed
-    """
     try:
-        # Step 1: Ingest transaction
         logging.info(f"Processing transaction for user: {tx.user_id}")
         
         if USE_MONOLITHIC:
-            # Use local ingestion logic
             import sys
             import os
             sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -247,7 +214,6 @@ def process_transaction(tx: RawTransaction):
             finally:
                 conn.close()
         else:
-            # Call ingest service
             ingest_result = call_service(f"{INGEST_API_URL}/ingest", "POST", tx.dict())
             if not ingest_result:
                 raise HTTPException(status_code=500, detail="Failed to ingest transaction")
@@ -258,7 +224,6 @@ def process_transaction(tx: RawTransaction):
         # Step 2: Detect anomalies
         if USE_MONOLITHIC:
             from anomaly_api import detect_anomalies
-            # Get transaction data from database
             with get_connection() as conn:
                 df = pd.read_sql("SELECT * FROM transactions WHERE transaction_id = ?", conn, params=[transaction_id])
                 if df.empty:
@@ -324,12 +289,9 @@ def process_transaction(tx: RawTransaction):
         logging.error(error_msg)
         raise HTTPException(status_code=500, detail=error_msg)
 
-# -------------------
 # Data Retrieval Endpoints
-# -------------------
 @app.get("/transactions")
 def get_transactions():
-    """Get all transactions from database"""
     try:
         with get_connection() as conn:
             rows = conn.execute("SELECT * FROM transactions ORDER BY transaction_id DESC").fetchall()
@@ -350,7 +312,6 @@ def get_transactions():
 
 @app.get("/ml_scores")
 def get_ml_scores():
-    """Get all ML scores from database"""
     try:
         with get_connection() as conn:
             rows = conn.execute("SELECT * FROM ml_scores ORDER BY transaction_id DESC").fetchall()
@@ -371,7 +332,6 @@ def get_ml_scores():
 
 @app.delete("/transaction/{transaction_id}")
 def delete_transaction(transaction_id: int):
-    """Delete a transaction and all related records."""
     try:
         with get_connection() as conn:
             cur = conn.cursor()
@@ -402,7 +362,6 @@ def delete_transaction(transaction_id: int):
 
 @app.post("/verify/{transaction_id}")
 def verify_transaction_endpoint(transaction_id: int):
-    """Verify a specific transaction"""
     try:
         if USE_MONOLITHIC:
             from verifier_api import verify_transaction
@@ -420,7 +379,6 @@ def verify_transaction_endpoint(transaction_id: int):
 
 @app.post("/verify_last")
 def verify_last_transaction():
-    """Verify the last transaction"""
     try:
         with get_connection() as conn:
             rows = conn.execute("SELECT * FROM ml_scores ORDER BY transaction_id DESC LIMIT 1").fetchall()
@@ -436,7 +394,6 @@ def verify_last_transaction():
 
 @app.get("/alerts")
 def get_alerts():
-    """Get all alerts"""
     try:
         if USE_MONOLITHIC:
             from alert_api import get_alerts
@@ -450,7 +407,6 @@ def get_alerts():
 
 @app.get("/verifications")
 def get_verifications():
-    """Get all verifications with explanations"""
     try:
         conn = get_connection()
         try:
@@ -459,7 +415,6 @@ def get_verifications():
                 FROM verifications
                 ORDER BY transaction_id DESC
             """, conn)
-            # Handle byte encoding issues
             result = []
             for _, row in df.iterrows():
                 d = row.to_dict()
@@ -474,7 +429,6 @@ def get_verifications():
         finally:
             conn.close()
     except sqlite3.OperationalError:
-        # Table doesn't exist yet, return empty list
         return []
     except Exception as e:
         logging.error(f"Error fetching verifications: {str(e)}")
