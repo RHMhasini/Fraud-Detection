@@ -8,6 +8,9 @@ from datetime import datetime
 from pathlib import Path
 import logging
 from openai import OpenAI
+from dotenv import load_dotenv
+
+load_dotenv()
 
 app = FastAPI(title="Transaction Verifier API")
 
@@ -32,7 +35,7 @@ THRESHOLD_PASS = 0.3
 THRESHOLD_DENY = 0.6
 
 # DeepSeek API Configuration
-DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY", "***REMOVED***")
+DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
 
 def get_db():
     return sqlite3.connect(DB_PATH)
